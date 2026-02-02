@@ -85,6 +85,16 @@ export const updateIssueStatus = async ({ id, status }) => {
   return data;
 };
 
+export const deleteIssue = async (id) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  await api.delete(`issues/${id}/`, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+};
+
 // --- SUBTASKS ---
 
 export const fetchSubtasks = async (issueId) => {
