@@ -28,15 +28,26 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get', 'patch'])
     def me(self, request):
         user = request.user
+        
         if request.method == 'GET':
             serializer = self.get_serializer(user)
             return Response(serializer.data)
         
         elif request.method == 'PATCH':
+            # 1. Update User fields (First Name, Last Name, Email)
             serializer = self.get_serializer(user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data)
+                
+                # 2. Manually Update Avatar (if provided)
+                if 'avatar' in request.FILES:
+                    profile = user.profile
+                    profile.avatar = request.FILES['avatar']
+                    profile.save()
+
+                # Return fresh data (including new avatar URL)
+                return Response(self.get_serializer(user).data)
+            
             return Response(serializer.errors, status=400)
 
 
