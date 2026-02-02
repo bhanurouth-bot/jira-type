@@ -19,10 +19,31 @@ export const logoutUser = async () => {
   await api.get('http://127.0.0.1:8000/api/logout/');
 };
 
-export const fetchIssues = async () => {
-  const { data } = await api.get('issues/');
+// PROJECTS
+export const fetchProjects = async () => {
+  const { data } = await api.get('projects/');
   return data;
 };
+
+export const createProject = async (name) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  const { data } = await api.post('projects/', { name, key: name.substring(0,3).toUpperCase() }, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+  return data;
+};
+
+// ISSUES (Update this existing function)
+export const fetchIssues = async (projectId) => {
+  // If projectId is provided, filter. Otherwise get all.
+  const url = projectId ? `issues/?project=${projectId}` : 'issues/';
+  const { data } = await api.get(url);
+  return data;
+};
+
 
 export const createIssue = async (issueData) => {
   // 1. Get the token (Reuse your working logic)

@@ -40,6 +40,14 @@ class IssueViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(reporter=self.request.user)
 
+    def get_queryset(self):
+        queryset = Issue.objects.all()
+        # Filter by project ID (e.g., /api/issues/?project=2)
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        return queryset
+
     # --- THIS IS THE NEW ACTION ---
     @action(detail=False, methods=['post'])
     def bulk_update_order(self, request):

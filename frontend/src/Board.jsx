@@ -9,7 +9,7 @@ import CommentsModal from './CommentsModal';
 
 const STATUSES = ['TODO', 'IN_PROG', 'DONE'];
 
-export default function Board({ search }) {
+export default function Board({ search, projectId }) {
   const queryClient = useQueryClient();
   const [editingIssue, setEditingIssue] = useState(null);
   const [chatIssue, setChatIssue] = useState(null);
@@ -22,8 +22,9 @@ export default function Board({ search }) {
 
   // Fetch from API
   const { data: serverIssues } = useQuery({
-    queryKey: ['issues'],
-    queryFn: fetchIssues,
+    queryKey: ['issues', projectId], // Unique key per project
+    queryFn: () => fetchIssues(projectId), // Fetch specific project issues
+    enabled: !!projectId, // Don't fetch if no project selected
   });
 
   // Sync server data to local state

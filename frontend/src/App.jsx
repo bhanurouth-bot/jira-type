@@ -1,117 +1,120 @@
 import React, { useState, useEffect } from 'react';
 import Board from './Board';
-import Dashboard from './Dashboard'; // <--- Import New Component
+import Dashboard from './Dashboard';
 import Login from './Login';
+import Sidebar from './Sidebar'; // <--- Import
 import CreateIssueModal from './CreateIssueModal';
-import api, { logoutUser } from './api';
+import api, { logoutUser, fetchProjects } from './api'; // <--- Import fetchProjects
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [search, setSearch] = useState('');
   
-  // 1. New State for View Switching
-  const [currentView, setCurrentView] = useState('board'); // 'board' or 'dashboard'
+  // NEW: Project State
+  const [selectedProject, setSelectedProject] = useState(null);
+  
+  const [currentView, setCurrentView] = useState('board'); 
+  const [search, setSearch] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Initial Load
   useEffect(() => {
-    api.get('issues/')
-      .then(() => setIsLoggedIn(true))
-      .catch(() => setIsLoggedIn(false))
-      .finally(() => setCheckingAuth(false));
+    const checkAuth = async () => {
+        try {
+            await api.get('projects/'); // Use this to check token validity
+            setIsLoggedIn(true);
+            
+            // Auto-select first project
+            const projects = await fetchProjects();
+            if (projects.length > 0) setSelectedProject(projects[0]);
+        } catch (err) {
+            setIsLoggedIn(false);
+        } finally {
+            setCheckingAuth(false);
+        }
+    };
+    checkAuth();
   }, []);
 
   const handleLogout = async () => {
-    try {
-      await logoutUser();
-      setIsLoggedIn(false);
-    } catch (error) {
-      console.error("Logout failed", error);
-      setIsLoggedIn(false); 
-    }
+    await logoutUser();
+    setIsLoggedIn(false);
   };
 
   if (checkingAuth) return <div>Loading...</div>;
   if (!isLoggedIn) return <Login onLoginSuccess={() => setIsLoggedIn(true)} />;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-       {/* HEADER */}
-       <div style={{ padding: '0 20px', background: '#0052cc', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '50px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
-            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>Project Alpha</h1>
-            
-            {/* NAVIGATION LINKS */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                    onClick={() => setCurrentView('board')}
-                    style={navButtonStyle(currentView === 'board')}
-                >
-                    Board
-                </button>
-                <button 
-                    onClick={() => setCurrentView('dashboard')}
-                    style={navButtonStyle(currentView === 'dashboard')}
-                >
-                    Dashboard
-                </button>
-            </div>
-          </div>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+       
+       {/* 1. SIDEBAR */}
+       <Sidebar 
+          currentProjectId={selectedProject?.id} 
+          onSelectProject={setSelectedProject} 
+       />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {/* Search Bar (Only show on Board view) */}
-            {currentView === 'board' && (
-                <div style={{ position: 'relative' }}>
+       {/* 2. MAIN CONTENT AREA */}
+       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+           
+           {/* HEADER */}
+           <div style={{ height: '50px', borderBottom: '1px solid #dfe1e6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', background: 'white' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <h2 style={{ fontSize: '18px', fontWeight: '500', color: '#172b4d', margin: 0 }}>
+                    {selectedProject ? selectedProject.name : 'Select a Project'}
+                  </h2>
+                  
+                  {/* View Switcher */}
+                  <div style={{ display: 'flex', gap: '5px', background: '#f4f5f7', padding: '3px', borderRadius: '3px' }}>
+                      <button onClick={() => setCurrentView('board')} style={viewBtnStyle(currentView === 'board')}>Board</button>
+                      <button onClick={() => setCurrentView('dashboard')} style={viewBtnStyle(currentView === 'dashboard')}>Dashboard</button>
+                  </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                 {currentView === 'board' && (
                     <input 
-                        type="text" 
-                        placeholder="Search..." 
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        style={{ padding: '5px 10px 5px 30px', borderRadius: '3px', border: 'none', background: 'rgba(255,255,255,0.2)', color: 'white', width: '150px', fontSize: '13px' }} 
+                        type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)}
+                        style={{ padding: '6px', borderRadius: '3px', border: '1px solid #dfe1e6' }}
                     />
-                    <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px' }}>🔍</span>
-                </div>
-            )}
+                 )}
+                 <button onClick={() => setIsModalOpen(true)} style={{ background: '#0052cc', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>Create Issue</button>
+                 <button onClick={handleLogout} style={{ color: '#5e6c84', background: 'none', border: 'none', cursor: 'pointer' }}>Logout</button>
+              </div>
+           </div>
 
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              style={{ background: '#00B8D9', color: '#172b4d', border: 'none', padding: '6px 12px', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-            >
-              + Create
-            </button>
-            <button 
-              onClick={handleLogout} 
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', fontSize: '13px' }}
-            >
-              Logout
-            </button>
-          </div>
+           {/* CONTENT */}
+           <div style={{ flex: 1, background: '#f4f5f7', overflow: 'hidden' }}>
+               {selectedProject ? (
+                   currentView === 'board' ? (
+                       <Board projectId={selectedProject?.id} search={search} />
+                   ) : (
+                       <Dashboard projectId={selectedProject.id} />
+                   )
+               ) : (
+                   <div style={{ padding: '40px', textAlign: 'center', color: '#5e6c84' }}>Please create or select a project.</div>
+               )}
+           </div>
        </div>
 
-       {/* MAIN CONTENT AREA */}
-       <div style={{ flex: 1, overflow: 'hidden' }}>
-            {currentView === 'board' ? (
-                <Board search={search} />
-            ) : (
-                <Dashboard />
-            )}
-       </div>
-
-       <CreateIssueModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+       {/* We pass projectId to the modal so it knows where to create the ticket */}
+       <CreateIssueModal 
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          projectId={selectedProject?.id} 
+       />
     </div>
   );
 }
 
-// Dynamic Style for Nav Buttons
-const navButtonStyle = (isActive) => ({
-    background: 'transparent',
+const viewBtnStyle = (isActive) => ({
+    background: isActive ? 'white' : 'transparent',
+    color: isActive ? '#0052cc' : '#42526e',
     border: 'none',
-    borderBottom: isActive ? '3px solid white' : '3px solid transparent',
-    color: 'white',
-    padding: '14px 10px', // matches header height roughly
+    padding: '5px 10px',
+    borderRadius: '3px',
     cursor: 'pointer',
-    fontWeight: isActive ? 'bold' : 'normal',
-    opacity: isActive ? 1 : 0.8
+    fontWeight: '500',
+    boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
 });
 
 export default App;

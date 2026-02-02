@@ -5,10 +5,17 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Resp
 
 const COLORS = ['#0052cc', '#00B8D9', '#36B37E', '#FFAB00', '#FF5630'];
 
-export default function Dashboard() {
+export default function Dashboard({ projectId }) { 
+  
   const { data: issues = [], isLoading } = useQuery({
-    queryKey: ['issues'],
-    queryFn: fetchIssues,
+    // 2. Add projectId to the unique key (so it refreshes when project changes)
+    queryKey: ['issues', projectId], 
+    
+    // 3. CRITICAL FIX: Use Arrow Function to pass the ID safely
+    queryFn: () => fetchIssues(projectId), 
+    
+    // 4. Only run if we have a project selected
+    enabled: !!projectId 
   });
 
   // 1. Calculate Status Counts (Pie Chart)
