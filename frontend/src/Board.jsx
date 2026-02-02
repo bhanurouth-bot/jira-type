@@ -115,8 +115,8 @@ export default function Board({ search }) {
     const activeId = active.id;
     const overId = over.id;
 
-    // 1. Calculate the New Status explicitly
-    let newStatus = originalIssue ? originalIssue.status : 'TODO'; // Default fallback
+    // 1. Calculate New Status
+    let newStatus = originalIssue ? originalIssue.status : 'TODO';
 
     if (STATUSES.includes(overId)) {
         newStatus = overId;
@@ -125,7 +125,7 @@ export default function Board({ search }) {
         if (overIssue) newStatus = overIssue.status;
     }
 
-    // 2. Reorder Local State Finalization
+    // 2. Update Local State (Instant UI feedback)
     const oldIndex = issues.findIndex((i) => i.id === activeId);
     const newIndex = issues.findIndex((i) => i.id === overId);
     let newIssues = [...issues];
@@ -138,17 +138,25 @@ export default function Board({ search }) {
     }
     setIssues(newIssues);
 
-    // 3. API CALLS
-    
-    // A) Check Status Change: Compare NEW status vs ORIGINAL status (from handleDragStart)
+    // 3. API CALLS & CACHE INVALIDATION
+    // We use .then() to tell React Query to re-fetch data after the save finishes.
+
+    // A) Status Change
     if (originalIssue && originalIssue.status !== newStatus) {
-         console.log(`Updating Status: ${originalIssue.status} -> ${newStatus}`);
-         updateIssueStatus({ id: activeId, status: newStatus }); 
+         updateIssueStatus({ id: activeId, status: newStatus })
+            .then(() => {
+                // This updates the Charts instantly!
+                queryClient.invalidateQueries({ queryKey: ['issues'] }); 
+            });
     }
 
-    // B) Save Order
+    // B) Order Change
     const columnItems = newIssues.filter(i => i.status === newStatus);
-    updateIssueOrder(columnItems);
+    updateIssueOrder(columnItems)
+        .then(() => {
+            // This ensures the order persists if you refresh
+            queryClient.invalidateQueries({ queryKey: ['issues'] });
+        });
   };
 
   return (
