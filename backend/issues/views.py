@@ -25,6 +25,21 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserLiteSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    @action(detail=False, methods=['get', 'patch'])
+    def me(self, request):
+        user = request.user
+        if request.method == 'GET':
+            serializer = self.get_serializer(user)
+            return Response(serializer.data)
+        
+        elif request.method == 'PATCH':
+            serializer = self.get_serializer(user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=400)
+
+
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer

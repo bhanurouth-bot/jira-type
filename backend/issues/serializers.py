@@ -49,3 +49,9 @@ class IssueSerializer(serializers.ModelSerializer):
             return None
         completed = obj.subtasks.filter(completed=True).count()
         return {'total': total, 'completed': completed}
+    
+class UserLiteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        # Add first_name, last_name, and email
+        fields = ['id', 'username', 'first_name', 'last_name', 'email']

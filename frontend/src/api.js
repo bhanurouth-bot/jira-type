@@ -207,6 +207,24 @@ export const uploadAttachment = async ({ issueId, file }) => {
   return data;
 };
 
+// --- USER PROFILE ---
+
+export const fetchCurrentUser = async () => {
+  const { data } = await api.get('users/me/');
+  return data;
+};
+
+export const updateCurrentUser = async (userData) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  const { data } = await api.patch('users/me/', userData, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+  return data;
+};
+
 export const deleteAttachment = async (id) => {
   let csrfToken = null;
   const match = document.cookie.match(/csrftoken=([^;]+)/);
