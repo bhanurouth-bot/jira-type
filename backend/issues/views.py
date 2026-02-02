@@ -7,6 +7,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
 import json
+from .models import Subtask # <--- Import
+from .serializers import SubtaskSerializer # <--- Import
 
 from .models import Project, Issue, Comment
 from .serializers import (
@@ -62,6 +64,19 @@ class CommentViewSet(viewsets.ModelViewSet):
         return queryset.order_by('created_at')
 
 # --- CUSTOM AUTH VIEWS ---
+
+class SubtaskViewSet(viewsets.ModelViewSet):
+    queryset = Subtask.objects.all()
+    serializer_class = SubtaskSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    # Filter by issue: /api/subtasks/?issue=1
+    def get_queryset(self):
+        queryset = Subtask.objects.all()
+        issue_id = self.request.query_params.get('issue')
+        if issue_id:
+            queryset = queryset.filter(issue_id=issue_id)
+        return queryset
 
 @csrf_exempt
 def custom_login(request):

@@ -1,52 +1,46 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, Issue, Comment
+from .models import Project, Issue, Comment, Subtask  # <--- Make sure Subtask is imported
 
-# 1. Simple User Serializer (for Assignee/Reporter fields)
 class UserLiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name']
+        fields = ['id', 'username']
 
-# 2. Project Serializer
 class ProjectSerializer(serializers.ModelSerializer):
-    owner_name = serializers.ReadOnlyField(source='owner.username')
-
     class Meta:
         model = Project
-        fields = ['id', 'name', 'key', 'description', 'owner', 'owner_name', 'created_at']
-        read_only_fields = ['owner']  # Owner is set automatically based on logged-in user
+        fields = '__all__'
+        read_only_fields = ['owner', 'created_at']
 
-# 3. Comment Serializer
+# --- NEW SERIALIZER ---
+class SubtaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subtask
+        fields = ['id', 'title', 'completed', 'issue']
+
 class CommentSerializer(serializers.ModelSerializer):
     author = UserLiteSerializer(read_only=True)
-
     class Meta:
         model = Comment
-        fields = ['id', 'issue', 'author', 'text', 'created_at']
-        read_only_fields = ['author']
+        fields = '__all__'
+        read_only_fields = ['author', 'created_at']
 
-# 4. Issue Serializer (The Big One)
 class IssueSerializer(serializers.ModelSerializer):
-    # Retrieve the computed "PROJ-1" key
-    key = serializers.ReadOnlyField() 
-    
-    # Nested serializers for reading (so we see names, not just IDs)
     assignee_details = UserLiteSerializer(source='assignee', read_only=True)
     reporter_details = UserLiteSerializer(source='reporter', read_only=True)
-    project_key = serializers.ReadOnlyField(source='project.key')
+    
+    # --- NEW FIELD FOR PROGRESS ---
+    progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Issue
-        fields = [
-            'id', 'key', 'title', 'description', 
-            'project', 'project_key',
-            'status', 'priority', 'issue_type',
-            'assignee', 'assignee_details',
-            'reporter', 'reporter_details',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['reporter', 'key_id']
+        fields = '__all__'
+        read_only_fields = ['reporter', 'created_at']
 
-    # Validation example: Prevent changing status to DONE if description is empty?
-    # You can add that logic here later.
+    def get_progress(self, obj):
+        total = obj.subtasks.count()
+        if total == 0:
+            return None
+        completed = obj.subtasks.filter(completed=True).count()
+        return {'total': total, 'completed': completed}

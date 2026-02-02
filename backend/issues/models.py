@@ -82,3 +82,12 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment by {self.author} on {self.issue.key}"
+    
+
+class Subtask(models.Model):
+    issue = models.ForeignKey(Issue, related_name='subtasks', on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    completed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.title

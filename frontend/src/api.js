@@ -85,6 +85,45 @@ export const updateIssueStatus = async ({ id, status }) => {
   return data;
 };
 
+// --- SUBTASKS ---
+
+export const fetchSubtasks = async (issueId) => {
+  const { data } = await api.get(`subtasks/?issue=${issueId}`);
+  return data;
+};
+
+export const createSubtask = async (data) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  const { data: response } = await api.post('subtasks/', data, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+  return response;
+};
+
+export const toggleSubtask = async ({ id, completed }) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  const { data } = await api.patch(`subtasks/${id}/`, { completed }, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+  return data;
+};
+
+export const deleteSubtask = async (id) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+  
+  await api.delete(`subtasks/${id}/`, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+};
+
 export const updateIssueOrder = async (issues) => {
   let csrfToken = null;
   const match = document.cookie.match(/csrftoken=([^;]+)/);

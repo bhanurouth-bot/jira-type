@@ -1,14 +1,14 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from issues.views import ProjectViewSet, IssueViewSet, CommentViewSet, UserViewSet, custom_login, custom_logout # Import them
+from issues.views import ProjectViewSet, IssueViewSet, CommentViewSet, UserViewSet, custom_login, custom_logout, SubtaskViewSet # Import them
 
 router = DefaultRouter()
 router.register(r'projects', ProjectViewSet)
 router.register(r'issues', IssueViewSet)
 router.register(r'comments', CommentViewSet)
 router.register(r'users', UserViewSet)
-
+router.register(r'subtasks', SubtaskViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

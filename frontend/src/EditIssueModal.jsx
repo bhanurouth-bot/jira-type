@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { updateIssue, fetchUsers, fetchComments, createComment } from './api'; // <--- Import new functions
+import { updateIssue, fetchUsers, fetchComments, createComment, fetchSubtasks, createSubtask, toggleSubtask, deleteSubtask } from './api';
 
 export default function EditIssueModal({ issue, isOpen, onClose }) {
   const queryClient = useQueryClient();
@@ -8,25 +8,17 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('MED');
   const [assignee, setAssignee] = useState('');
-  
-  // New State for Comments
   const [newComment, setNewComment] = useState('');
+  
+  // NEW: Subtask State
+  const [newSubtask, setNewSubtask] = useState('');
 
-  // 1. Fetch Users
-  const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: fetchUsers,
-    enabled: !!isOpen,
-  });
+  // Queries
+  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: fetchUsers, enabled: !!isOpen });
+  const { data: comments = [] } = useQuery({ queryKey: ['comments', issue?.id], queryFn: () => fetchComments(issue.id), enabled: !!isOpen && !!issue });
+  const { data: subtasks = [] } = useQuery({ queryKey: ['subtasks', issue?.id], queryFn: () => fetchSubtasks(issue.id), enabled: !!isOpen && !!issue });
 
-  // 2. Fetch Comments (Only when issue is open)
-  const { data: comments = [] } = useQuery({
-    queryKey: ['comments', issue?.id],
-    queryFn: () => fetchComments(issue.id),
-    enabled: !!isOpen && !!issue,
-  });
-
-  // 3. Populate Form
+  // Sync Form
   useEffect(() => {
     if (issue) {
       setTitle(issue.title);
@@ -36,49 +28,61 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
     }
   }, [issue]);
 
+  // --- MUTATIONS ---
   const updateMutation = useMutation({
     mutationFn: updateIssue,
-    onSuccess: () => {
-      queryClient.invalidateQueries(['issues']);
-      onClose();
-    },
-    onError: () => alert("Failed to update issue")
+    onSuccess: () => { queryClient.invalidateQueries(['issues']); onClose(); }
   });
 
-  // Mutation to Add Comment
   const commentMutation = useMutation({
     mutationFn: createComment,
-    onSuccess: () => {
-      // Refresh only the comments list
-      queryClient.invalidateQueries(['comments', issue.id]);
-      setNewComment(''); // Clear input
-    },
-    onError: () => alert("Failed to post comment")
+    onSuccess: () => { queryClient.invalidateQueries(['comments', issue.id]); setNewComment(''); }
   });
 
+  // Subtask Mutations
+  const addSubtaskMutation = useMutation({
+    mutationFn: createSubtask,
+    onSuccess: () => { 
+        queryClient.invalidateQueries(['subtasks', issue.id]); 
+        queryClient.invalidateQueries(['issues']); // Update card progress bar
+        setNewSubtask(''); 
+    }
+  });
+
+  const toggleSubtaskMutation = useMutation({
+    mutationFn: toggleSubtask,
+    onSuccess: () => { 
+        queryClient.invalidateQueries(['subtasks', issue.id]);
+        queryClient.invalidateQueries(['issues']); 
+    }
+  });
+
+  const deleteSubtaskMutation = useMutation({
+    mutationFn: deleteSubtask,
+    onSuccess: () => { 
+        queryClient.invalidateQueries(['subtasks', issue.id]);
+        queryClient.invalidateQueries(['issues']); 
+    }
+  });
+
+  // --- HANDLERS ---
   const handleSave = (e) => {
     e.preventDefault();
-    updateMutation.mutate({
-      id: issue.id,
-      title,
-      description,
-      priority,
-      assignee: assignee || null,
-    });
+    updateMutation.mutate({ id: issue.id, title, description, priority, assignee: assignee || null });
   };
 
-  const handlePostComment = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { // Submit on Enter
-        e.preventDefault();
-        if(!newComment.trim()) return;
-        commentMutation.mutate({
-            issue: issue.id,
-            text: newComment
-        });
-    }
+  const handleAddSubtask = (e) => {
+      e.preventDefault();
+      if (!newSubtask.trim()) return;
+      addSubtaskMutation.mutate({ issue: issue.id, title: newSubtask, completed: false });
   };
 
   if (!isOpen || !issue) return null;
+
+  // Calculate Progress for display
+  const totalTasks = subtasks.length;
+  const completedTasks = subtasks.filter(t => t.completed).length;
+  const progressPercent = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
   return (
     <div style={overlayStyle}>
@@ -88,116 +92,114 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>✕</button>
         </div>
         
-        {/* Main Content Scrollable Area */}
-        <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '10px' }}>
+        <div style={{ maxHeight: '75vh', overflowY: 'auto', paddingRight: '10px' }}>
+            {/* Title & Description Form */}
             <form id="edit-form" onSubmit={handleSave}>
-            <div style={fieldGroupStyle}>
-                <input 
-                required
-                type="text" 
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                style={{...inputStyle, fontSize: '18px', fontWeight: '500', padding: '8px 0', border: 'none', borderBottom: '2px solid transparent' }}
-                placeholder="Issue Summary"
-                />
-            </div>
-
-            <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Description</label>
-                <textarea 
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                style={{...inputStyle, height: '100px', fontFamily: 'sans-serif', resize: 'vertical'}}
-                placeholder="Add more details..."
-                />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1, marginBottom: '20px' }}>
-                    <label style={labelStyle}>Priority</label>
-                    <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
-                    <option value="LOW">Low</option>
-                    <option value="MED">Medium</option>
-                    <option value="HIGH">High</option>
-                    </select>
+                <div style={fieldGroupStyle}>
+                    <input required type="text" value={title} onChange={(e) => setTitle(e.target.value)} style={{...inputStyle, fontSize: '18px', fontWeight: '500', padding: '8px 0', border: 'none', borderBottom: '2px solid transparent' }} />
                 </div>
-
-                <div style={{ flex: 1, marginBottom: '20px' }}>
-                    <label style={labelStyle}>Assignee</label>
-                    <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={inputStyle}>
-                    <option value="">Unassigned</option>
-                    {users.map(user => (
-                        <option key={user.id} value={user.id}>{user.username}</option>
-                    ))}
-                    </select>
+                <div style={fieldGroupStyle}>
+                    <label style={labelStyle}>Description</label>
+                    <textarea value={description} onChange={(e) => setDescription(e.target.value)} style={{...inputStyle, height: '80px', fontFamily: 'sans-serif', resize: 'vertical'}} />
                 </div>
-            </div>
+                {/* Priority & Assignee Selects */}
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>Priority</label>
+                        <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
+                            <option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option>
+                        </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>Assignee</label>
+                        <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={inputStyle}>
+                            <option value="">Unassigned</option>
+                            {users.map(user => <option key={user.id} value={user.id}>{user.username}</option>)}
+                        </select>
+                    </div>
+                </div>
             </form>
 
-            {/* --- COMMENTS SECTION --- */}
-            <div style={{ marginTop: '30px', borderTop: '1px solid #dfe1e6', paddingTop: '20px' }}>
-                <h4 style={{ fontSize: '14px', color: '#172b4d', margin: '0 0 15px 0' }}>Activity</h4>
-                
-                {/* List of Comments */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-                    {comments.map((comment) => (
-                        <div key={comment.id} style={{ display: 'flex', gap: '10px' }}>
-                            {/* Avatar */}
-                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#dfe1e6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#42526e', flexShrink: 0 }}>
-                                {comment.author?.username.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '12px', marginBottom: '4px' }}>
-                                    <span style={{ fontWeight: '600', color: '#172b4d', marginRight: '8px' }}>
-                                        {comment.author?.username}
-                                    </span>
-                                    <span style={{ color: '#6b778c' }}>
-                                        {new Date(comment.created_at).toLocaleString()}
-                                    </span>
-                                </div>
-                                <div style={{ fontSize: '14px', color: '#172b4d', lineHeight: '1.4' }}>
-                                    {comment.text}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                    {comments.length === 0 && (
-                        <div style={{ fontSize: '13px', color: '#6b778c', fontStyle: 'italic' }}>No comments yet.</div>
+            {/* --- CHECKLIST SECTION --- */}
+            <div style={{ marginBottom: '30px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <label style={labelStyle}>Checklist</label>
+                    {totalTasks > 0 && (
+                        <span style={{ fontSize: '11px', color: '#5e6c84' }}>{progressPercent}% done</span>
                     )}
                 </div>
 
-                {/* Add Comment Input */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#0052cc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: 'white', flexShrink: 0 }}>
-                         M {/* 'Me' avatar placeholder */}
+                {/* Progress Bar */}
+                {totalTasks > 0 && (
+                    <div style={{ height: '6px', background: '#dfe1e6', borderRadius: '3px', marginBottom: '15px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${progressPercent}%`, background: '#0052cc', transition: 'width 0.3s ease' }} />
                     </div>
-                    <div style={{ flex: 1 }}>
-                        <input 
-                            type="text" 
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            onKeyDown={handlePostComment}
-                            placeholder="Add a comment..."
-                            disabled={commentMutation.isPending}
-                            style={{ width: '100%', padding: '8px 12px', borderRadius: '3px', border: '1px solid #dfe1e6', fontSize: '14px' }}
-                        />
-                        <div style={{ fontSize: '11px', color: '#6b778c', marginTop: '4px' }}>
-                            Pro tip: press <strong>Enter</strong> to comment
+                )}
+
+                {/* Subtasks List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px' }}>
+                    {subtasks.map(task => (
+                        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px', borderRadius: '3px', background: task.completed ? '#f4f5f7' : 'white' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={task.completed} 
+                                onChange={(e) => toggleSubtaskMutation.mutate({ id: task.id, completed: e.target.checked })}
+                                style={{ cursor: 'pointer' }}
+                            />
+                            <span style={{ flex: 1, fontSize: '14px', textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? '#6b778c' : '#172b4d' }}>
+                                {task.title}
+                            </span>
+                            <button 
+                                onClick={() => deleteSubtaskMutation.mutate(task.id)}
+                                style={{ background: 'none', border: 'none', color: '#6b778c', cursor: 'pointer', fontSize: '16px' }}
+                            >
+                                ×
+                            </button>
                         </div>
-                    </div>
+                    ))}
                 </div>
+
+                {/* Add Subtask Input */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <input 
+                        type="text" 
+                        value={newSubtask}
+                        onChange={(e) => setNewSubtask(e.target.value)}
+                        placeholder="Add an item..."
+                        style={{ ...inputStyle, padding: '6px 8px' }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask(e)}
+                    />
+                    <button 
+                        onClick={handleAddSubtask}
+                        disabled={!newSubtask.trim()}
+                        style={{ background: '#f4f5f7', border: 'none', padding: '6px 12px', borderRadius: '3px', color: '#172b4d', fontWeight: '500', cursor: 'pointer' }}
+                    >
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            {/* --- ACTIVITY (Chat) --- */}
+            <div style={{ borderTop: '1px solid #dfe1e6', paddingTop: '20px' }}>
+                <h4 style={{ fontSize: '14px', color: '#172b4d', margin: '0 0 15px 0' }}>Activity</h4>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <input 
+                        type="text" 
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && commentMutation.mutate({ issue: issue.id, text: newComment })}
+                        placeholder="Add a comment..."
+                        style={inputStyle}
+                    />
+                </div>
+                {/* (You can add the comment list here if you want, but we have the Chat Modal for that) */}
             </div>
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #dfe1e6', paddingTop: '15px' }}>
-            <button 
-              type="submit"
-              form="edit-form" // Connects to the form ID above
-              disabled={updateMutation.isPending}
-              style={{ background: '#0052cc', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '3px', cursor: 'pointer' }}
-            >
-              {updateMutation.isPending ? 'Saving...' : 'Save'}
+            <button type="submit" form="edit-form" disabled={updateMutation.isPending} style={{ background: '#0052cc', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '3px', cursor: 'pointer' }}>
+              Save
             </button>
         </div>
       </div>
@@ -205,25 +207,9 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
   );
 }
 
-// ... styles
-const overlayStyle = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(9, 30, 66, 0.54)',
-  display: 'flex', justifyContent: 'center', alignItems: 'center',
-  zIndex: 1000
-};
-
-const modalStyle = {
-  background: 'white',
-  padding: '30px',
-  borderRadius: '4px',
-  width: '600px', // Slightly wider for chat
-  maxHeight: '90vh',
-  display: 'flex',
-  flexDirection: 'column',
-  boxShadow: '0 0 0 1px rgba(9,30,66,0.08), 0 2px 24px rgba(9,30,66,0.08)'
-};
-
+// Styles
+const overlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(9, 30, 66, 0.54)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 };
+const modalStyle = { background: 'white', padding: '30px', borderRadius: '4px', width: '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 0 0 1px rgba(9,30,66,0.08), 0 2px 24px rgba(9,30,66,0.08)' };
 const fieldGroupStyle = { marginBottom: '20px' };
 const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '600', color: '#6b778c', marginBottom: '6px' };
 const inputStyle = { width: '100%', padding: '8px', borderRadius: '3px', border: '1px solid #dfe1e6', boxSizing: 'border-box', fontSize: '14px' };
