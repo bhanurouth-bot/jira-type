@@ -13,10 +13,13 @@ class UserLiteSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'avatar'] 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    owner = UserLiteSerializer(read_only=True)
+    members = UserLiteSerializer(many=True, read_only=True) # <--- Show full member details
+
     class Meta:
         model = Project
-        fields = '__all__'
-        read_only_fields = ['owner', 'created_at']
+        fields = ['id', 'name', 'key', 'description', 'owner', 'members', 'created_at']
+        read_only_fields = ['owner', 'created_at', 'members']
 
 class SubtaskSerializer(serializers.ModelSerializer):
     class Meta:

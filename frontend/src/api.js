@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Base configuration
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api/',
+  baseURL: 'http://100.111.91.125:8000/api/',
   withCredentials: true, // <--- THIS IS CRITICAL. It sends the session cookie.
   headers: {
     'Content-Type': 'application/json',
@@ -207,6 +207,16 @@ export const uploadAttachment = async ({ issueId, file }) => {
   return data;
 };
 
+export const addProjectMember = async (projectId, username) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  const { data } = await api.post(`projects/${projectId}/add_member/`, { username }, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+  return data;
+};
 // --- USER PROFILE ---
 
 export const fetchCurrentUser = async () => {

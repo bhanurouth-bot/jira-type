@@ -9,6 +9,7 @@ from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.db import IntegrityError
 import json
+from django.db.models import Q
 from .models import Attachment, Subtask # <--- Import
 from .serializers import AttachmentSerializer, SubtaskSerializer # <--- Import
 
@@ -56,8 +57,29 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    # 1. SECURITY: Only show projects I am part of
+    def get_queryset(self):
+        user = self.request.user
+        return Project.objects.filter(Q(owner=user) | Q(members=user)).distinct()
+
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    # 2. ACTION: Invite a user
+    @action(detail=True, methods=['post'])
+    def add_member(self, request, pk=None):
+        project = self.get_object()
+        username = request.data.get('username')
+        
+        try:
+            user = User.objects.get(username=username)
+            if user == project.owner:
+                 return Response({'error': 'User is already the owner'}, status=400)
+            
+            project.members.add(user)
+            return Response({'status': f'{username} added to project'})
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
 
 class IssueViewSet(viewsets.ModelViewSet):
     queryset = Issue.objects.all()

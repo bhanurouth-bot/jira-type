@@ -25,6 +25,7 @@ export default function Board({ search, projectId }) {
     queryKey: ['issues', projectId], // Unique key per project
     queryFn: () => fetchIssues(projectId), // Fetch specific project issues
     enabled: !!projectId, // Don't fetch if no project selected
+    refetchInterval: 2000,
   });
 
   // Sync server data to local state
