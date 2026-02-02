@@ -7,6 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
+from django.db import IntegrityError
 import json
 from .models import Attachment, Subtask # <--- Import
 from .serializers import AttachmentSerializer, SubtaskSerializer # <--- Import
@@ -128,3 +129,26 @@ def custom_login(request):
 def custom_logout(request):
     logout(request)
     return JsonResponse({'status': 'logged out'})
+
+@csrf_exempt
+def register(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            username = data.get('username')
+            password = data.get('password')
+            email = data.get('email', '')
+
+            if not username or not password:
+                return JsonResponse({'error': 'Username and password required'}, status=400)
+
+            # Create the user
+            user = User.objects.create_user(username=username, password=password, email=email)
+            return JsonResponse({'status': 'success', 'username': user.username})
+
+        except IntegrityError:
+            return JsonResponse({'error': 'Username already exists'}, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+            
+    return JsonResponse({'error': 'Method not allowed'}, status=405)

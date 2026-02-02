@@ -15,8 +15,8 @@ export const fetchUsers = async () => {
 };
 
 export const logoutUser = async () => {
-  // Use the full URL to override the baseURL setting
-  await api.get('http://127.0.0.1:8000/api/logout/');
+  // CORRECT: This goes to /api/auth/logout/
+  await api.get('auth/logout/'); 
 };
 
 // PROJECTS
@@ -44,6 +44,10 @@ export const fetchIssues = async (projectId) => {
   return data;
 };
 
+export const registerUser = async (username, password, email) => {
+  const { data } = await api.post('auth/register/', { username, password, email });
+  return data;
+};
 
 export const createIssue = async (issueData) => {
   // 1. Get the token (Reuse your working logic)
@@ -120,6 +124,12 @@ export const deleteIssue = async (id) => {
 
 export const fetchSubtasks = async (issueId) => {
   const { data } = await api.get(`subtasks/?issue=${issueId}`);
+  return data;
+};
+
+export const loginUser = async (username, password) => {
+  // CORRECT
+  const { data } = await api.post('auth/login/', { username, password });
   return data;
 };
 
