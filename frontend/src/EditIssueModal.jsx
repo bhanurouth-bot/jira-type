@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { updateIssue, fetchUsers, fetchComments, createComment, fetchSubtasks, createSubtask, toggleSubtask, deleteSubtask, deleteIssue } from './api'; // <--- Import deleteIssue
+import { updateIssue, fetchUsers, fetchComments, createComment, fetchSubtasks, createSubtask, toggleSubtask, deleteSubtask, deleteIssue, fetchAttachments, uploadAttachment, deleteAttachment } from './api';
 
 export default function EditIssueModal({ issue, isOpen, onClose }) {
   const queryClient = useQueryClient();
@@ -15,6 +15,8 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: fetchUsers, enabled: !!isOpen });
   const { data: comments = [] } = useQuery({ queryKey: ['comments', issue?.id], queryFn: () => fetchComments(issue.id), enabled: !!isOpen && !!issue });
   const { data: subtasks = [] } = useQuery({ queryKey: ['subtasks', issue?.id], queryFn: () => fetchSubtasks(issue.id), enabled: !!isOpen && !!issue });
+  // New: Fetch Attachments
+  const { data: attachments = [] } = useQuery({ queryKey: ['attachments', issue?.id], queryFn: () => fetchAttachments(issue.id), enabled: !!isOpen && !!issue });
 
   useEffect(() => {
     if (issue) {
@@ -51,13 +53,20 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
     onSuccess: () => { queryClient.invalidateQueries(['subtasks', issue.id]); queryClient.invalidateQueries(['issues']); }
   });
 
-  // NEW: Delete Issue Mutation
   const deleteIssueMutation = useMutation({
     mutationFn: deleteIssue,
-    onSuccess: () => { 
-        queryClient.invalidateQueries(['issues']); // Refresh board
-        onClose(); // Close modal
-    }
+    onSuccess: () => { queryClient.invalidateQueries(['issues']); onClose(); }
+  });
+
+  // New: Attachment Mutations
+  const uploadMutation = useMutation({
+    mutationFn: uploadAttachment,
+    onSuccess: () => { queryClient.invalidateQueries(['attachments', issue.id]); }
+  });
+
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: deleteAttachment,
+    onSuccess: () => { queryClient.invalidateQueries(['attachments', issue.id]); }
   });
 
   // --- HANDLERS ---
@@ -67,15 +76,21 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
   };
 
   const handleDelete = () => {
-      if (window.confirm("Are you sure you want to delete this issue? This cannot be undone.")) {
-          deleteIssueMutation.mutate(issue.id);
-      }
+      if (window.confirm("Are you sure you want to delete this issue?")) deleteIssueMutation.mutate(issue.id);
   };
 
   const handleAddSubtask = (e) => {
       e.preventDefault();
       if (!newSubtask.trim()) return;
       addSubtaskMutation.mutate({ issue: issue.id, title: newSubtask, completed: false });
+  };
+
+  // New: Handle File Select
+  const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+          uploadMutation.mutate({ issueId: issue.id, file });
+      }
   };
 
   if (!isOpen || !issue) return null;
@@ -89,19 +104,9 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
       <div style={modalStyle}>
         {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#5e6c84' }}>{issue.key}</span>
-            </div>
-            
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#5e6c84' }}>{issue.key}</span>
             <div style={{ display: 'flex', gap: '10px' }}>
-                {/* DELETE BUTTON (Trash Icon) */}
-                <button 
-                    onClick={handleDelete}
-                    title="Delete Issue"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}
-                >
-                    🗑️
-                </button>
+                <button onClick={handleDelete} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>🗑️</button>
                 <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
             </div>
         </div>
@@ -156,6 +161,33 @@ export default function EditIssueModal({ issue, isOpen, onClose }) {
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <input type="text" value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} placeholder="Add an item..." style={{ ...inputStyle, padding: '6px 8px' }} onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask(e)} />
                     <button onClick={handleAddSubtask} disabled={!newSubtask.trim()} style={{ background: '#f4f5f7', border: 'none', padding: '6px 12px', borderRadius: '3px', color: '#172b4d', fontWeight: '500', cursor: 'pointer' }}>Add</button>
+                </div>
+            </div>
+
+            {/* --- ATTACHMENTS SECTION --- */}
+            <div style={{ marginBottom: '30px', borderTop: '1px solid #dfe1e6', paddingTop: '20px' }}>
+                <label style={labelStyle}>Attachments</label>
+                
+                {/* File Grid */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                    {attachments.map(att => (
+                        <div key={att.id} style={{ position: 'relative', width: '80px', height: '80px', border: '1px solid #dfe1e6', borderRadius: '4px', overflow: 'hidden', background: '#f4f5f7' }}>
+                            <a href={att.file} target="_blank" rel="noopener noreferrer">
+                                <img src={att.file} alt="attachment" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </a>
+                            <button 
+                                onClick={() => deleteAttachmentMutation.mutate(att.id)}
+                                style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(255,255,255,0.8)', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 5px' }}
+                            >
+                                ×
+                            </button>
+                        </div>
+                    ))}
+                    {/* Upload Button */}
+                    <label style={{ width: '80px', height: '80px', border: '1px dashed #dfe1e6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b778c', fontSize: '20px' }}>
+                        +
+                        <input type="file" onChange={handleFileChange} style={{ display: 'none' }} />
+                    </label>
                 </div>
             </div>
 

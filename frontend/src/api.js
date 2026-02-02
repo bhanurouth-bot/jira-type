@@ -150,4 +150,40 @@ export const updateIssueOrder = async (issues) => {
   });
 };
 
+// --- ATTACHMENTS ---
+
+export const fetchAttachments = async (issueId) => {
+  const { data } = await api.get(`attachments/?issue=${issueId}`);
+  return data;
+};
+
+export const uploadAttachment = async ({ issueId, file }) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  // We must use FormData for file uploads
+  const formData = new FormData();
+  formData.append('issue', issueId);
+  formData.append('file', file);
+
+  const { data } = await api.post('attachments/', formData, {
+    headers: { 
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'multipart/form-data' // Important!
+    }
+  });
+  return data;
+};
+
+export const deleteAttachment = async (id) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+  
+  await api.delete(`attachments/${id}/`, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+};
+
 export default api;

@@ -91,3 +91,11 @@ class Subtask(models.Model):
 
     def __str__(self):
         return self.title
+    
+class Attachment(models.Model):
+    issue = models.ForeignKey(Issue, related_name='attachments', on_delete=models.CASCADE)
+    file = models.FileField(upload_to='attachments/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"File for {self.issue.key}"

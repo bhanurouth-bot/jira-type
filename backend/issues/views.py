@@ -1,14 +1,15 @@
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action  # <--- CRITICAL IMPORT
 from rest_framework.response import Response  # <--- CRITICAL IMPORT
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
 import json
-from .models import Subtask # <--- Import
-from .serializers import SubtaskSerializer # <--- Import
+from .models import Attachment, Subtask # <--- Import
+from .serializers import AttachmentSerializer, SubtaskSerializer # <--- Import
 
 from .models import Project, Issue, Comment
 from .serializers import (
@@ -78,6 +79,19 @@ class SubtaskViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(issue_id=issue_id)
         return queryset
 
+class AttachmentViewSet(viewsets.ModelViewSet):
+    queryset = Attachment.objects.all()
+    serializer_class = AttachmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser) # Allow file uploads
+
+    def get_queryset(self):
+        queryset = Attachment.objects.all()
+        issue_id = self.request.query_params.get('issue')
+        if issue_id:
+            queryset = queryset.filter(issue_id=issue_id)
+        return queryset
+    
 @csrf_exempt
 def custom_login(request):
     if request.method == 'POST':

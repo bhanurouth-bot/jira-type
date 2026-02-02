@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, Issue, Comment, Subtask  # <--- Make sure Subtask is imported
+from .models import Project, Issue, Comment, Subtask, Attachment # <--- Make sure Subtask is imported
 
 class UserLiteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -25,6 +25,11 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = '__all__'
         read_only_fields = ['author', 'created_at']
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attachment
+        fields = ['id', 'issue', 'file', 'uploaded_at']
 
 class IssueSerializer(serializers.ModelSerializer):
     assignee_details = UserLiteSerializer(source='assignee', read_only=True)

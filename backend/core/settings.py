@@ -121,6 +121,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 CORS_ALLOW_CREDENTIALS = True
 SESSION_COOKIE_SAMESITE = 'Lax' # Or 'None' if using HTTPS, but 'Lax' is best for local HTTP
 SESSION_COOKIE_SECURE = False
