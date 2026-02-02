@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DndContext, closestCorners, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { DndContext, closestCorners, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { fetchIssues, updateIssueStatus, updateIssueOrder } from './api';
 import Column from './Column';
@@ -16,6 +16,9 @@ export default function Board({ search }) {
   
   // Local state for instant drag updates
   const [issues, setIssues] = useState([]);
+  
+  // NEW: Track where the drag started
+  const [activeDragIssue, setActiveDragIssue] = useState(null);
 
   // Fetch from API
   const { data: serverIssues } = useQuery({
@@ -26,18 +29,15 @@ export default function Board({ search }) {
   // Sync server data to local state
   useEffect(() => {
     if (serverIssues) {
-        // Sort by 'order' field to ensure correct display
         const sorted = [...serverIssues].sort((a, b) => a.order - b.order);
         setIssues(sorted);
     }
   }, [serverIssues]);
 
-  // Sensors (Make drag smoother)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  // Filter Logic
   const filteredIssues = useMemo(() => {
     if (!search) return issues;
     const lowerSearch = search.toLowerCase();
@@ -54,17 +54,24 @@ export default function Board({ search }) {
 
   // --- DRAG HANDLERS ---
 
+  // 1. CAPTURE ORIGINAL STATE
+  const handleDragStart = (event) => {
+    const issueId = event.active.id;
+    const issue = issues.find(i => i.id === issueId);
+    if (issue) {
+        setActiveDragIssue(issue); // Save the issue as it was BEFORE drag
+    }
+  };
+
   const handleDragOver = (event) => {
     const { active, over } = event;
     if (!over) return;
     if (active.id === over.id) return;
 
     const isActiveTask = active.data.current?.type !== 'Column';
-    const isOverTask = over.data.current?.type !== 'Column';
 
     if (!isActiveTask) return;
 
-    // Finding the card objects
     const activeIssue = issues.find(i => i.id === active.id);
     const overIssue = issues.find(i => i.id === over.id);
 
@@ -76,8 +83,8 @@ export default function Board({ search }) {
             const activeIndex = items.findIndex(i => i.id === active.id);
             const overIndex = items.findIndex(i => i.id === over.id);
             
-            // Clone and update status immediately for visual feedback
             const newItems = [...items];
+            // Optimistically update status
             newItems[activeIndex] = { ...newItems[activeIndex], status: overIssue.status };
             
             return arrayMove(newItems, activeIndex, overIndex);
@@ -91,42 +98,57 @@ export default function Board({ search }) {
             const activeIndex = items.findIndex(i => i.id === active.id);
             const newItems = [...items];
             newItems[activeIndex] = { ...newItems[activeIndex], status: over.id };
-            return arrayMove(newItems, activeIndex, activeIndex); // Just status change
+            return arrayMove(newItems, activeIndex, activeIndex);
         });
     }
   };
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
+    
+    // Reset drag state
+    const originalIssue = activeDragIssue;
+    setActiveDragIssue(null);
+
     if (!over) return;
 
     const activeId = active.id;
     const overId = over.id;
 
-    // Calculate final positions
-    const activeIndex = issues.findIndex(i => i.id === activeId);
-    const overIndex = issues.findIndex(i => i.id === overId);
+    // 1. Calculate the New Status explicitly
+    let newStatus = originalIssue ? originalIssue.status : 'TODO'; // Default fallback
 
+    if (STATUSES.includes(overId)) {
+        newStatus = overId;
+    } else {
+        const overIssue = issues.find(i => i.id === overId);
+        if (overIssue) newStatus = overIssue.status;
+    }
+
+    // 2. Reorder Local State Finalization
+    const oldIndex = issues.findIndex((i) => i.id === activeId);
+    const newIndex = issues.findIndex((i) => i.id === overId);
     let newIssues = [...issues];
 
-    if (activeIndex !== overIndex) {
-        newIssues = arrayMove(issues, activeIndex, overIndex);
-        setIssues(newIssues); // Update UI
+    if (oldIndex !== -1) {
+        newIssues[oldIndex] = { ...newIssues[oldIndex], status: newStatus };
     }
+    if (oldIndex !== newIndex) {
+        newIssues = arrayMove(newIssues, oldIndex, newIndex);
+    }
+    setIssues(newIssues);
 
-    // Identify the column (status) that changed
-    const activeIssue = newIssues.find(i => i.id === activeId);
-    if(!activeIssue) return;
-    const currentStatus = activeIssue.status;
-
-    // Get all items in that column (in their new order)
-    const columnItems = newIssues.filter(i => i.status === currentStatus);
+    // 3. API CALLS
     
-    // Save to Backend
-    updateIssueOrder(columnItems); // Save order
-    if (active.data.current?.status !== currentStatus) {
-         updateIssueStatus({ id: activeId, status: currentStatus }); // Save status if changed
+    // A) Check Status Change: Compare NEW status vs ORIGINAL status (from handleDragStart)
+    if (originalIssue && originalIssue.status !== newStatus) {
+         console.log(`Updating Status: ${originalIssue.status} -> ${newStatus}`);
+         updateIssueStatus({ id: activeId, status: newStatus }); 
     }
+
+    // B) Save Order
+    const columnItems = newIssues.filter(i => i.status === newStatus);
+    updateIssueOrder(columnItems);
   };
 
   return (
@@ -134,6 +156,7 @@ export default function Board({ search }) {
       <DndContext 
         sensors={sensors}
         collisionDetection={closestCorners} 
+        onDragStart={handleDragStart} // <--- Don't forget this!
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
