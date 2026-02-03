@@ -9,8 +9,11 @@ from django.middleware.csrf import get_token
 from django.http import JsonResponse
 from django.db import IntegrityError
 import json
+from django.db.models import Q
 from .models import Attachment, Subtask # <--- Import
 from .serializers import AttachmentSerializer, SubtaskSerializer # <--- Import
+from django.core.mail import send_mail # <--- Add this
+from django.conf import settings
 
 from .models import Project, Issue, Comment
 from .serializers import (
@@ -28,15 +31,26 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get', 'patch'])
     def me(self, request):
         user = request.user
+        
         if request.method == 'GET':
             serializer = self.get_serializer(user)
             return Response(serializer.data)
         
         elif request.method == 'PATCH':
+            # 1. Update User fields (First Name, Last Name, Email)
             serializer = self.get_serializer(user, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                return Response(serializer.data)
+                
+                # 2. Manually Update Avatar (if provided)
+                if 'avatar' in request.FILES:
+                    profile = user.profile
+                    profile.avatar = request.FILES['avatar']
+                    profile.save()
+
+                # Return fresh data (including new avatar URL)
+                return Response(self.get_serializer(user).data)
+            
             return Response(serializer.errors, status=400)
 
 
@@ -45,8 +59,29 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    # 1. SECURITY: Only show projects I am part of
+    def get_queryset(self):
+        user = self.request.user
+        return Project.objects.filter(Q(owner=user) | Q(members=user)).distinct()
+
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    # 2. ACTION: Invite a user
+    @action(detail=True, methods=['post'])
+    def add_member(self, request, pk=None):
+        project = self.get_object()
+        username = request.data.get('username')
+        
+        try:
+            user = User.objects.get(username=username)
+            if user == project.owner:
+                 return Response({'error': 'User is already the owner'}, status=400)
+            
+            project.members.add(user)
+            return Response({'status': f'{username} added to project'})
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
 
 class IssueViewSet(viewsets.ModelViewSet):
     queryset = Issue.objects.all()
@@ -54,24 +89,54 @@ class IssueViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save(reporter=self.request.user)
+        # Save the issue
+        issue = serializer.save(reporter=self.request.user)
+        
+        # Check if there is an assignee to notify
+        if issue.assignee and issue.assignee != self.request.user:
+            self.send_assignment_email(issue)
 
-    def get_queryset(self):
-        queryset = Issue.objects.all()
-        # Filter by project ID (e.g., /api/issues/?project=2)
-        project_id = self.request.query_params.get('project')
-        if project_id:
-            queryset = queryset.filter(project_id=project_id)
-        return queryset
+    def perform_update(self, serializer):
+        # Get the old assignee before saving
+        old_assignee = self.get_object().assignee
+        
+        # Save the changes
+        issue = serializer.save()
+        
+        # If assignee CHANGED and is not the current user, send email
+        if issue.assignee and issue.assignee != old_assignee and issue.assignee != self.request.user:
+            self.send_assignment_email(issue)
 
-    # --- THIS IS THE NEW ACTION ---
-    @action(detail=False, methods=['post'])
-    def bulk_update_order(self, request):
-        # Expects: { "issues": [ { "id": 1, "order": 0 }, ... ] }
-        updates = request.data.get('issues', [])
-        for item in updates:
-            Issue.objects.filter(id=item['id']).update(order=item['order'])
-        return Response({'status': 'orders updated'})
+    # --- HELPER FUNCTION ---
+    def send_assignment_email(self, issue):
+        subject = f"You've been assigned: {issue.key} - {issue.title}"
+        message = f"""
+        Hello {issue.assignee.username},
+
+        You have been assigned to a new ticket by {issue.reporter.username}.
+
+        Project: {issue.project.name}
+        Ticket: {issue.key}
+        Title: {issue.title}
+        Priority: {issue.priority}
+        
+        Description:
+        {issue.description}
+
+        Good luck!
+        """
+        
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.EMAIL_HOST_USER,
+                [issue.assignee.email],
+                fail_silently=False,
+            )
+            print(f"Email sent to {issue.assignee.email}")
+        except Exception as e:
+            print(f"Failed to send email: {e}")
 
 class CommentViewSet(viewsets.ModelViewSet):
     queryset = Comment.objects.all()

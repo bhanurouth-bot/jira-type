@@ -7,22 +7,23 @@ export default function ProfileModal({ isOpen, onClose }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState(''); // Read-only
+  const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(null); // Current URL
+  const [newAvatar, setNewAvatar] = useState(null); // New file to upload
 
-  // Fetch my data
   const { data: user } = useQuery({
     queryKey: ['me'],
     queryFn: fetchCurrentUser,
     enabled: isOpen,
   });
 
-  // Load data into form when fetched
   useEffect(() => {
     if (user) {
       setFirstName(user.first_name || '');
       setLastName(user.last_name || '');
       setEmail(user.email || '');
       setUsername(user.username || '');
+      setAvatarUrl(user.avatar || null);
     }
   }, [user]);
 
@@ -30,7 +31,7 @@ export default function ProfileModal({ isOpen, onClose }) {
     mutationFn: updateCurrentUser,
     onSuccess: () => {
       queryClient.invalidateQueries(['me']);
-      queryClient.invalidateQueries(['users']); // Update names elsewhere in app
+      queryClient.invalidateQueries(['users']); // Updates avatars on the board immediately
       alert("Profile updated!");
       onClose();
     }
@@ -38,7 +39,20 @@ export default function ProfileModal({ isOpen, onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    mutation.mutate({ first_name: firstName, last_name: lastName, email });
+    mutation.mutate({ 
+        first_name: firstName, 
+        last_name: lastName, 
+        email,
+        avatar: newAvatar // Send the file
+    });
+  };
+
+  const handleFileChange = (e) => {
+      if (e.target.files[0]) {
+          setNewAvatar(e.target.files[0]);
+          // Create a fake local URL just for preview
+          setAvatarUrl(URL.createObjectURL(e.target.files[0]));
+      }
   };
 
   if (!isOpen) return null;
@@ -51,14 +65,25 @@ export default function ProfileModal({ isOpen, onClose }) {
              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Read Only Username */}
-          <div>
-            <label style={labelStyle}>Username</label>
-            <input type="text" value={username} disabled style={{ ...inputStyle, background: '#f4f5f7', color: '#6b778c' }} />
+          {/* AVATAR UPLOAD SECTION */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '80px', height: '80px', borderRadius: '50%', overflow: 'hidden', border: '2px solid #dfe1e6', background: '#f4f5f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                      <span style={{ fontSize: '24px', color: '#6b778c' }}>{username.charAt(0).toUpperCase()}</span>
+                  )}
+              </div>
+              
+              <label style={{ cursor: 'pointer', color: '#0052cc', fontSize: '13px', fontWeight: '500' }}>
+                  Change Avatar
+                  <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+              </label>
           </div>
 
+          {/* FORM FIELDS */}
           <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>First Name</label>

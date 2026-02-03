@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-p#=z(nfzrwxj+w8scpk(3&39v#f1qz57we!u!6g!a%p8hp$ppe
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -131,8 +131,20 @@ SESSION_COOKIE_SECURE = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://100.118.120.105:5173",
+    "http://100.111.91.125:5173",
+    "http://100.100.14.87:5173",
+
+    
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://100.118.120.105:5173",
+    "http://100.111.91.125:5173",
+    "http://100.100.14.87:5173",
+    
 ]
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST_USER = 'notifications@jira-clone.com'

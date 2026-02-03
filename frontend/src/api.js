@@ -207,6 +207,16 @@ export const uploadAttachment = async ({ issueId, file }) => {
   return data;
 };
 
+export const addProjectMember = async (projectId, username) => {
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
+  const { data } = await api.post(`projects/${projectId}/add_member/`, { username }, {
+    headers: { 'X-CSRFToken': csrfToken }
+  });
+  return data;
+};
 // --- USER PROFILE ---
 
 export const fetchCurrentUser = async () => {
@@ -219,8 +229,18 @@ export const updateCurrentUser = async (userData) => {
   const match = document.cookie.match(/csrftoken=([^;]+)/);
   if (match) csrfToken = match[1];
 
-  const { data } = await api.patch('users/me/', userData, {
-    headers: { 'X-CSRFToken': csrfToken }
+  // Convert object to FormData to handle images
+  const formData = new FormData();
+  if (userData.first_name) formData.append('first_name', userData.first_name);
+  if (userData.last_name) formData.append('last_name', userData.last_name);
+  if (userData.email) formData.append('email', userData.email);
+  if (userData.avatar) formData.append('avatar', userData.avatar); // <--- The File
+
+  const { data } = await api.patch('users/me/', formData, {
+    headers: { 
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'multipart/form-data' // <--- Critical
+    }
   });
   return data;
 };

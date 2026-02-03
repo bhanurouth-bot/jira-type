@@ -59,7 +59,11 @@ export default function IssueCard({ issue, onDoubleClick, onChatClick }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '24px' }}>
             {issue.assignee_details ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <Avatar name={issue.assignee_details.username} size={24} />
+                    <Avatar 
+                        src={issue.assignee_details?.avatar} 
+                        name={issue.assignee_details?.username} 
+                        size={24} 
+                    />
                 </div>
             ) : (
                 <span style={{fontSize:'10px', color:'#ccc'}}>Unassigned</span>

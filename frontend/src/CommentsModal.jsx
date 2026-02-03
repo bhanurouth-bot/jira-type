@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchComments, createComment } from './api';
-import Avatar from './Avatar'; // <--- Import it
+import { fetchComments, createComment, fetchCurrentUser } from './api'; // <--- Import fetchCurrentUser
+import Avatar from './Avatar'; 
 
 export default function CommentsModal({ issue, isOpen, onClose }) {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState('');
 
+  // 1. Fetch Comments
   const { data: comments = [] } = useQuery({
     queryKey: ['comments', issue?.id],
     queryFn: () => fetchComments(issue.id),
     enabled: !!isOpen && !!issue,
+  });
+
+  // 2. Fetch "Me" (so we can show my own face in the input box)
+  const { data: currentUser } = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchCurrentUser,
+    enabled: !!isOpen
   });
 
   const mutation = useMutation({
@@ -57,8 +65,12 @@ export default function CommentsModal({ issue, isOpen, onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {comments.map((comment) => (
                         <div key={comment.id} style={{ display: 'flex', gap: '10px' }}>
-                            {/* USE AVATAR HERE */}
-                            <Avatar name={comment.author?.username} size={32} />
+                            {/* 3. Pass the 'src' prop here */}
+                            <Avatar 
+                                src={comment.author?.avatar} 
+                                name={comment.author?.username} 
+                                size={32} 
+                            />
                             
                             <div style={{flex: 1}}>
                                 <div style={{ fontSize: '12px', marginBottom: '4px' }}>
@@ -81,8 +93,12 @@ export default function CommentsModal({ issue, isOpen, onClose }) {
 
         {/* Input Area */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderTop: '1px solid #dfe1e6', paddingTop: '15px' }}>
-            {/* Show "My" Avatar in Input */}
-            <Avatar name="Me" size={32} />
+            {/* 4. Show "My" real Avatar here */}
+            <Avatar 
+                src={currentUser?.avatar} 
+                name={currentUser?.username || "Me"} 
+                size={32} 
+            />
             
             <input 
                 autoFocus
@@ -107,6 +123,5 @@ export default function CommentsModal({ issue, isOpen, onClose }) {
   );
 }
 
-// Styles
 const overlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(9, 30, 66, 0.54)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 };
 const modalStyle = { background: 'white', padding: '20px', borderRadius: '4px', width: '500px', height: '600px', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 30px rgba(0,0,0,0.12)' };
