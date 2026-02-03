@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Project, Issue, Comment, Subtask, Attachment 
+from .models import History, Project, Issue, Comment, Subtask, Attachment 
 
 # 1. DEFINE THIS AT THE VERY TOP (So other serializers can use it)
 class UserLiteSerializer(serializers.ModelSerializer):
@@ -12,6 +12,14 @@ class UserLiteSerializer(serializers.ModelSerializer):
         # Include 'avatar' here
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'avatar'] 
 
+class HistorySerializer(serializers.ModelSerializer):
+    actor_name = serializers.ReadOnlyField(source='actor.username')
+    actor_avatar = serializers.ImageField(source='actor.profile.avatar', read_only=True)
+
+    class Meta:
+        model = History
+        fields = ['id', 'actor_name', 'actor_avatar', 'field', 'old_value', 'new_value', 'timestamp']
+        
 class ProjectSerializer(serializers.ModelSerializer):
     owner = UserLiteSerializer(read_only=True)
     members = UserLiteSerializer(many=True, read_only=True) # <--- Show full member details
@@ -45,8 +53,10 @@ class IssueSerializer(serializers.ModelSerializer):
     assignee_details = UserLiteSerializer(source='assignee', read_only=True)
     reporter_details = UserLiteSerializer(source='reporter', read_only=True)
     attachments = AttachmentSerializer(many=True, read_only=True)
-    
+
     progress = serializers.SerializerMethodField()
+    history = HistorySerializer(many=True, read_only=True)
+    subtasks = SubtaskSerializer(many=True, read_only=True)
 
     class Meta:
         model = Issue

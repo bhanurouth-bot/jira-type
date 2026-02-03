@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// FIX 1: Cleaned up imports (removed duplicate closestCorners)
 import { DndContext, closestCorners, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { fetchIssues, updateIssueStatus, updateIssueOrder } from './api';
@@ -14,21 +15,16 @@ export default function Board({ search, projectId }) {
   const [editingIssue, setEditingIssue] = useState(null);
   const [chatIssue, setChatIssue] = useState(null);
   
-  // Local state for instant drag updates
   const [issues, setIssues] = useState([]);
-  
-  // NEW: Track where the drag started
   const [activeDragIssue, setActiveDragIssue] = useState(null);
 
-  // Fetch from API
   const { data: serverIssues } = useQuery({
-    queryKey: ['issues', projectId], // Unique key per project
-    queryFn: () => fetchIssues(projectId), // Fetch specific project issues
-    enabled: !!projectId, // Don't fetch if no project selected
-    refetchInterval: 2000,
+    queryKey: ['issues', projectId],
+    queryFn: () => fetchIssues(projectId),
+    enabled: !!projectId,
+    // FIX 2: Removed refetchInterval: 2000 to prevent dragging glitches
   });
 
-  // Sync server data to local state
   useEffect(() => {
     if (serverIssues) {
         const sorted = [...serverIssues].sort((a, b) => a.order - b.order);
@@ -56,12 +52,11 @@ export default function Board({ search, projectId }) {
 
   // --- DRAG HANDLERS ---
 
-  // 1. CAPTURE ORIGINAL STATE
   const handleDragStart = (event) => {
     const issueId = event.active.id;
     const issue = issues.find(i => i.id === issueId);
     if (issue) {
-        setActiveDragIssue(issue); // Save the issue as it was BEFORE drag
+        setActiveDragIssue(issue);
     }
   };
 
@@ -86,7 +81,6 @@ export default function Board({ search, projectId }) {
             const overIndex = items.findIndex(i => i.id === over.id);
             
             const newItems = [...items];
-            // Optimistically update status
             newItems[activeIndex] = { ...newItems[activeIndex], status: overIssue.status };
             
             return arrayMove(newItems, activeIndex, overIndex);
@@ -108,7 +102,6 @@ export default function Board({ search, projectId }) {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     
-    // Reset drag state
     const originalIssue = activeDragIssue;
     setActiveDragIssue(null);
 
@@ -117,7 +110,6 @@ export default function Board({ search, projectId }) {
     const activeId = active.id;
     const overId = over.id;
 
-    // 1. Calculate New Status
     let newStatus = originalIssue ? originalIssue.status : 'TODO';
 
     if (STATUSES.includes(overId)) {
@@ -127,7 +119,6 @@ export default function Board({ search, projectId }) {
         if (overIssue) newStatus = overIssue.status;
     }
 
-    // 2. Update Local State (Instant UI feedback)
     const oldIndex = issues.findIndex((i) => i.id === activeId);
     const newIndex = issues.findIndex((i) => i.id === overId);
     let newIssues = [...issues];
@@ -140,23 +131,16 @@ export default function Board({ search, projectId }) {
     }
     setIssues(newIssues);
 
-    // 3. API CALLS & CACHE INVALIDATION
-    // We use .then() to tell React Query to re-fetch data after the save finishes.
-
-    // A) Status Change
     if (originalIssue && originalIssue.status !== newStatus) {
          updateIssueStatus({ id: activeId, status: newStatus })
             .then(() => {
-                // This updates the Charts instantly!
                 queryClient.invalidateQueries({ queryKey: ['issues'] }); 
             });
     }
 
-    // B) Order Change
     const columnItems = newIssues.filter(i => i.status === newStatus);
     updateIssueOrder(columnItems)
         .then(() => {
-            // This ensures the order persists if you refresh
             queryClient.invalidateQueries({ queryKey: ['issues'] });
         });
   };
@@ -165,8 +149,8 @@ export default function Board({ search, projectId }) {
     <div style={{ display: 'flex', gap: '20px', padding: '20px', height: '100vh', background: '#f4f5f7' }}>
       <DndContext 
         sensors={sensors}
-        collisionDetection={closestCorners} 
-        onDragStart={handleDragStart} // <--- Don't forget this!
+        collisionDetection={closestCorners} // <--- Important: Kept this for better empty column detection
+        onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >

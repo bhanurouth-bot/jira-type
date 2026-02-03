@@ -97,6 +97,65 @@ class IssueViewSet(viewsets.ModelViewSet):
         if issue.assignee and issue.assignee != self.request.user:
             self.send_assignment_email(issue)
 
+    @action(detail=False, methods=['post'])
+    def bulk_update_order(self, request):
+        """
+        Robustly handles sorting. 
+        It ignores non-numeric IDs (like "issues" or "todo") to prevent crashes.
+        """
+        for index, item in enumerate(request.data):
+            issue_id = None
+            new_order = index
+
+            # 1. Extract the ID based on format
+            if isinstance(item, (str, int)):
+                issue_id = item
+            elif isinstance(item, dict):
+                issue_id = item.get('id')
+                new_order = item.get('order', index)
+
+            # 2. VALIDATION CHECK (The Fix)
+            # Only proceed if issue_id is a valid number (e.g., "10" or 10)
+            if issue_id is not None and str(issue_id).isdigit():
+                Issue.objects.filter(id=issue_id).update(order=new_order)
+                
+        return Response({'status': 'orders updated'})
+
+    def perform_update(self, serializer):
+        # 1. Get the current state (Before Save)
+        old_instance = self.get_object()
+        old_status = old_instance.status
+        old_priority = old_instance.priority
+        old_assignee = old_instance.assignee
+
+        # 2. Save the new state
+        new_instance = serializer.save()
+
+        # 3. Compare and Record Changes
+        actor = self.request.user
+
+        # Check Status Change
+        if old_status != new_instance.status:
+            History.objects.create(
+                issue=new_instance, actor=actor, field="status",
+                old_value=old_status, new_value=new_instance.status
+            )
+
+        # Check Priority Change
+        if old_priority != new_instance.priority:
+            History.objects.create(
+                issue=new_instance, actor=actor, field="priority",
+                old_value=old_priority, new_value=new_instance.priority
+            )
+
+        # Check Assignee Change
+        if old_assignee != new_instance.assignee:
+            History.objects.create(
+                issue=new_instance, actor=actor, field="assignee",
+                old_value=old_assignee.username if old_assignee else "Unassigned",
+                new_value=new_instance.assignee.username if new_instance.assignee else "Unassigned"
+            )
+
     def perform_update(self, serializer):
         # Get the old assignee before saving
         old_assignee = self.get_object().assignee

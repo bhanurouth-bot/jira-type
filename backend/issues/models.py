@@ -124,3 +124,14 @@ def save_user_profile(sender, instance, **kwargs):
     except ObjectDoesNotExist:
         # If the user exists but has no profile (e.g. created before this feature), create one now.
         Profile.objects.create(user=instance)
+
+class History(models.Model):
+    issue = models.ForeignKey(Issue, related_name='history', on_delete=models.CASCADE)
+    actor = models.ForeignKey(User, on_delete=models.CASCADE) # Who did it?
+    field = models.CharField(max_length=50) # e.g., "status" or "priority"
+    old_value = models.CharField(max_length=255, null=True, blank=True)
+    new_value = models.CharField(max_length=255, null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp'] # Newest first

@@ -29,6 +29,7 @@ export default function Column({ id, issues, onIssueDblClick, onChatClick }) {
         items={issues.map(i => i.id)} 
         strategy={verticalListSortingStrategy}
       >
+        <div style={{ minHeight: '0px', paddingBottom: '20px' }}></div>
         {issues.map((issue) => (
             <IssueCard 
             key={issue.id} 
