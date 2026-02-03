@@ -188,21 +188,22 @@ export const fetchAttachments = async (issueId) => {
   return data;
 };
 
-export const uploadAttachment = async ({ issueId, file }) => {
-  let csrfToken = null;
-  const match = document.cookie.match(/csrftoken=([^;]+)/);
-  if (match) csrfToken = match[1];
-
-  // We must use FormData for file uploads
+export const uploadAttachment = async (issueId, file) => {
   const formData = new FormData();
   formData.append('issue', issueId);
   formData.append('file', file);
 
+  // Get CSRF Token
+  let csrfToken = null;
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  if (match) csrfToken = match[1];
+
   const { data } = await api.post('attachments/', formData, {
-    headers: { 
+      headers: {
         'X-CSRFToken': csrfToken,
-        'Content-Type': 'multipart/form-data' // Important!
-    }
+        // CRITICAL: We set this to null/undefined so the Browser sets the correct boundary
+        'Content-Type': 'multipart/form-data' 
+      }
   });
   return data;
 };

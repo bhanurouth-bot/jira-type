@@ -44,6 +44,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
 class IssueSerializer(serializers.ModelSerializer):
     assignee_details = UserLiteSerializer(source='assignee', read_only=True)
     reporter_details = UserLiteSerializer(source='reporter', read_only=True)
+    attachments = AttachmentSerializer(many=True, read_only=True)
     
     progress = serializers.SerializerMethodField()
 

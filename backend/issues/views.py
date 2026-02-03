@@ -14,6 +14,7 @@ from .models import Attachment, Subtask # <--- Import
 from .serializers import AttachmentSerializer, SubtaskSerializer # <--- Import
 from django.core.mail import send_mail # <--- Add this
 from django.conf import settings
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from .models import Project, Issue, Comment
 from .serializers import (
@@ -174,12 +175,8 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser) # Allow file uploads
 
-    def get_queryset(self):
-        queryset = Attachment.objects.all()
-        issue_id = self.request.query_params.get('issue')
-        if issue_id:
-            queryset = queryset.filter(issue_id=issue_id)
-        return queryset
+    def perform_create(self, serializer):
+        serializer.save()
     
 @csrf_exempt
 def custom_login(request):
